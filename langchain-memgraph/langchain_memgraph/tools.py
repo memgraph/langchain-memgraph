@@ -1,93 +1,88 @@
 """Memgraph tools."""
 
-from typing import Optional, Type
+from typing import Optional, Type, Dict, List, Any
 
 from langchain_core.callbacks import (
     CallbackManagerForToolRun,
 )
 from langchain_core.tools import BaseTool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
+from .memgraph import Memgraph
 
 
-class MemgraphToolInput(BaseModel):
-    """Input schema for Memgraph tool.
-
-    This docstring is **not** part of what is sent to the model when performing tool
-    calling. The Field default values and descriptions **are** part of what is sent to
-    the model when performing tool calling.
+class BaseMemgraphTool(BaseModel):
     """
+    Base tool for interacting with Memgraph. 
+    """ 
 
-    # TODO: Add input args and descriptions.
-    a: int = Field(..., description="first number to add")
-    b: int = Field(..., description="second number to add")
+    db: Memgraph = Field(exclude=True)
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+    )
 
 
-class MemgraphTool(BaseTool):  # type: ignore[override]
-    """Memgraph tool.
+class _QueryMemgraphToolInput(BaseModel):
+    """
+    Input query for Memgraph Query tool.
+    """
+    query: str = Field(..., description="The query to be executed in Memgraph.")
+
+
+class QueryMemgraphTool(BaseMemgraphTool, BaseTool):  # type: ignore[override]
+    """Tool for querying Memgraph.
 
     Setup:
-        # TODO: Replace with relevant packages, env vars.
-        Install ``langchain-memgraph`` and set environment variable ``MEMGRAPH_API_KEY``.
+        Install ``langchain-memgraph`` and make sure Memgraph is running. 
 
         .. code-block:: bash
-
             pip install -U langchain-memgraph
-            export MEMGRAPH_API_KEY="your-api-key"
 
     Instantiation:
         .. code-block:: python
 
-            tool = MemgraphTool(
-                # TODO: init params
+            tool = QueryMemgraphTool(
             )
 
     Invocation with args:
         .. code-block:: python
 
-            # TODO: invoke args
-            tool.invoke({...})
+            tool.invoke({"query" : "MATCH (n) RETURN n LIMIT 1"})
 
         .. code-block:: python
 
-            # TODO: output of invocation
+            # Output of invocation
+            # List[Dict[str, Any]
+            [
+                {
+                    "n": {
+                        "name": "Alice",
+                        "age": 30
+                    }
+                }
+            ]
 
-    Invocation with ToolCall:
-
-        .. code-block:: python
-
-            # TODO: invoke args
-            tool.invoke({"args": {...}, "id": "1", "name": tool.name, "type": "tool_call"})
-
-        .. code-block:: python
-
-            # TODO: output of invocation
     """  # noqa: E501
 
-    # TODO: Set tool name and description
-    name: str = "TODO: Tool name"
+    name: str = "memgraph_cypher_query"
     """The name that is passed to the model when performing tool calling."""
-    description: str = "TODO: Tool description."
+
+    description: str = "Tool is used to query Memgraph via Cypher query and returns the result."
     """The description that is passed to the model when performing tool calling."""
-    args_schema: Type[BaseModel] = MemgraphToolInput
+    
+    args_schema: Type[BaseModel] = _QueryMemgraphToolInput
     """The schema that is passed to the model when performing tool calling."""
 
     # TODO: Add any other init params for the tool.
     # param1: Optional[str]
     # """param1 determines foobar"""
 
-    # TODO: Replaced (a, b) with real tool arguments.
+
     def _run(
-        self, a: int, b: int, *, run_manager: Optional[CallbackManagerForToolRun] = None
-    ) -> str:
-        return str(a + b + 80)
+        self,
+        query: str, 
+        run_manager: Optional[CallbackManagerForToolRun] = None, 
 
-    # TODO: Implement if tool has native async functionality, otherwise delete.
+    ) -> List[Dict[str, Any]]:
+        return self.db.query(query)
 
-    # async def _arun(
-    #     self,
-    #     a: int,
-    #     b: int,
-    #     *,
-    #     run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
-    # ) -> str:
-    #     ...

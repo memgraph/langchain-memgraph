@@ -1,20 +1,20 @@
 from typing import Type
-
-from langchain_memgraph.tools import MemgraphTool
+from langchain_memgraph.memgraph import Memgraph
+from langchain_memgraph.tools import QueryMemgraphTool
 from langchain_tests.integration_tests import ToolsIntegrationTests
 
 
-class TestParrotMultiplyToolIntegration(ToolsIntegrationTests):
+class TestMemgraphIntegration(ToolsIntegrationTests):
     @property
-    def tool_constructor(self) -> Type[MemgraphTool]:
-        return MemgraphTool
+    def tool_constructor(self) -> Type[QueryMemgraphTool]:
+        return QueryMemgraphTool
 
     @property
     def tool_constructor_params(self) -> dict:
         # if your tool constructor instead required initialization arguments like
         # `def __init__(self, some_arg: int):`, you would return those here
         # as a dictionary, e.g.: `return {'some_arg': 42}`
-        return {}
+        return {"db": Memgraph("bolt://localhost:7687", "", "")}
 
     @property
     def tool_invoke_params_example(self) -> dict:
@@ -24,4 +24,4 @@ class TestParrotMultiplyToolIntegration(ToolsIntegrationTests):
         This should NOT be a ToolCall dict - i.e. it should not
         have {"name", "id", "args"} keys.
         """
-        return {"a": 2, "b": 3}
+        return {"query": "MATCH (n) RETURN n LIMIT 1"}

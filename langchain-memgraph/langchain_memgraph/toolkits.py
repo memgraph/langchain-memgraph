@@ -2,40 +2,42 @@
 
 from typing import List
 
+from pydantic import Field, ConfigDict
 from langchain_core.tools import BaseTool, BaseToolkit
+from langchain_core.language_models import BaseLanguageModel
+from langchain_memgraph.tools import (
+    QueryMemgraphTool,
+)
+from langchain_memgraph.memgraph import Memgraph
 
 
 class MemgraphToolkit(BaseToolkit):
-    # TODO: Replace all TODOs in docstring. See example docstring:
-    # https://github.com/langchain-ai/langchain/blob/c123cb2b304f52ab65db4714eeec46af69a861ec/libs/community/langchain_community/agent_toolkits/sql/toolkit.py#L19
-    """Memgraph toolkit.
+    """Memgraph toolkit for interacting with the Memgraph database.
 
-    # TODO: Replace with relevant packages, env vars, etc.
     Setup:
-        Install ``langchain-memgraph`` and set environment variable ``MEMGRAPH_API_KEY``.
+        Install ``langchain-memgraph``.
 
         .. code-block:: bash
 
             pip install -U langchain-memgraph
-            export MEMGRAPH_API_KEY="your-api-key"
+            pip install -U neo4j # Client for Memgraph
 
-    # TODO: Populate with relevant params.
     Key init args:
-        arg 1: type
-            description
-        arg 2: type
-            description
+        db: MemgraphDB
+            MemgraphDB database object.
+        llm: BaseLanguageModel
+            The language model used by the toolkit, in particular for query generation.
 
-    # TODO: Replace with relevant init params.
     Instantiate:
         .. code-block:: python
 
-            from langchain-memgraph import MemgraphToolkit
+            from langchain-memgraph.toolkits import MemgraphToolkit
+            from langchain-memgraph.memgraph import MemgraphDB
 
             toolkit = MemgraphToolkit(
-                # ...
+                db=db,
+                llm=llm,
             )
-
     Tools:
         .. code-block:: python
 
@@ -43,30 +45,20 @@ class MemgraphToolkit(BaseToolkit):
 
         .. code-block:: none
 
-            # TODO: Example output.
+            QueryMemgraphTool
 
-    Use within an agent:
-        .. code-block:: python
-
-            from langgraph.prebuilt import create_react_agent
-
-            agent_executor = create_react_agent(llm, tools)
-
-            example_query = "..."
-
-            events = agent_executor.stream(
-                {"messages": [("user", example_query)]},
-                stream_mode="values",
-            )
-            for event in events:
-                event["messages"][-1].pretty_print()
-
-        .. code-block:: none
-
-             # TODO: Example output.
 
     """  # noqa: E501
 
-    # TODO: This method must be implemented to list tools.
+    db: Memgraph = Field(exclude=True)
+    llm: BaseLanguageModel = Field(exclude=True)
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+    )
+
     def get_tools(self) -> List[BaseTool]:
-        raise NotImplementedError()
+        """Return the list of tools in the toolkit."""
+        return [
+            QueryMemgraphTool(db=self.db),
+        ]

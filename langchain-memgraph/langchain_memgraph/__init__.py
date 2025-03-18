@@ -1,12 +1,10 @@
 from importlib import metadata
 
-from langchain_memgraph.chat_models import ChatMemgraph
 from langchain_memgraph.document_loaders import MemgraphLoader
-from langchain_memgraph.embeddings import MemgraphEmbeddings
 from langchain_memgraph.retrievers import MemgraphRetriever
 from langchain_memgraph.toolkits import MemgraphToolkit
-from langchain_memgraph.tools import MemgraphTool
-from langchain_memgraph.vectorstores import MemgraphVectorStore
+from langchain_memgraph.tools import QueryMemgraphTool
+
 
 try:
     __version__ = metadata.version(__package__)
@@ -22,6 +20,6 @@ __all__ = [
     "MemgraphLoader",
     "MemgraphRetriever",
     "MemgraphToolkit",
-    "MemgraphTool",
+    "QueryMemgraphTool",
     "__version__",
 ]
