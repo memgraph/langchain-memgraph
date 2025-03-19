@@ -7,7 +7,7 @@ from langchain_core.callbacks import (
 )
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field, ConfigDict
-from .memgraph import Memgraph
+from langchain_memgraph.graphs.memgraph import Memgraph
 
 
 class BaseMemgraphTool(BaseModel):

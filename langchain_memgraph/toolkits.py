@@ -8,7 +8,7 @@ from langchain_core.language_models import BaseLanguageModel
 from langchain_memgraph.tools import (
     QueryMemgraphTool,
 )
-from langchain_memgraph.memgraph import Memgraph
+from langchain_memgraph.graphs.memgraph import Memgraph
 
 
 class MemgraphToolkit(BaseToolkit):

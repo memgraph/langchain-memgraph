@@ -1,26 +1,19 @@
-""" Memgraph implementation class """
-
 import logging
+from hashlib import md5
 from typing import Any, Dict, List, Optional
+
 from langchain_core.utils import get_from_dict_or_env
 
+from langchain_memgraph.graphs.graph_document import GraphDocument, Node, Relationship
+from langchain_memgraph.graphs.graph_store import GraphStore
 
 logger = logging.getLogger(__name__)
 
+
+BASE_ENTITY_LABEL = "__Entity__"
+
 SCHEMA_QUERY = """
 SHOW SCHEMA INFO
-"""
-
-NODE_PROPS_TEXT = """
-Node labels and properties (name and type) are:
-"""
-
-REL_PROPS_TEXT = """
-Relationship labels and properties are:
-"""
-
-REL_TEXT = """
-Nodes are connected with the following relationships:
 """
 
 NODE_PROPERTIES_QUERY = """
@@ -54,9 +47,55 @@ RETURN
     ELSE null END) AS properties_info
 """
 
+NODE_IMPORT_QUERY = """
+UNWIND $data AS row
+CALL merge.node(row.label, row.properties, {}, {}) 
+YIELD node 
+RETURN distinct 'done' AS result
+"""
 
-def _remove_backticks(text: str) -> str:
-    return text.replace("`", "")
+REL_NODES_IMPORT_QUERY = """
+UNWIND $data AS row
+MERGE (source {id: row.source_id})
+MERGE (target {id: row.target_id})
+RETURN distinct 'done' AS result
+"""
+
+REL_IMPORT_QUERY = """
+UNWIND $data AS row
+MATCH (source {id: row.source_id})
+MATCH (target {id: row.target_id})
+WITH source, target, row
+CALL merge.relationship(source, row.type, {}, {}, target, {})
+YIELD rel
+RETURN distinct 'done' AS result
+"""
+
+INCLUDE_DOCS_QUERY = """
+MERGE (d:Document {id:$document.metadata.id})
+SET d.content = $document.page_content
+SET d += $document.metadata
+RETURN distinct 'done' AS result
+"""
+
+INCLUDE_DOCS_SOURCE_QUERY = """
+UNWIND $data AS row
+MATCH (source {id: row.source_id}), (d:Document {id: $document.metadata.id})
+MERGE (d)-[:MENTIONS]->(source)
+RETURN distinct 'done' AS result
+"""
+
+NODE_PROPS_TEXT = """
+Node labels and properties (name and type) are:
+"""
+
+REL_PROPS_TEXT = """
+Relationship labels and properties are:
+"""
+
+REL_TEXT = """
+Nodes are connected with the following relationships:
+"""
 
 
 def get_schema_subset(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -174,21 +213,70 @@ def transform_schema_to_text(schema: Dict[str, Any]) -> str:
     )
 
 
-class Memgraph: 
-    """
-    Memgraph database wrapper.
+def _remove_backticks(text: str) -> str:
+    return text.replace("`", "")
 
-    This class provides a utility for interacting with a Memgraph database.
+
+def _transform_nodes(nodes: list[Node], baseEntityLabel: bool) -> List[dict]:
+    transformed_nodes = []
+    for node in nodes:
+        properties_dict = node.properties | {"id": node.id}
+        label = (
+            [_remove_backticks(node.type), BASE_ENTITY_LABEL]
+            if baseEntityLabel
+            else [_remove_backticks(node.type)]
+        )
+        node_dict = {"label": label, "properties": properties_dict}
+        transformed_nodes.append(node_dict)
+    return transformed_nodes
+
+
+def _transform_relationships(
+    relationships: list[Relationship], baseEntityLabel: bool
+) -> List[dict]:
+    transformed_relationships = []
+    for rel in relationships:
+        rel_dict = {
+            "type": _remove_backticks(rel.type),
+            "source_label": (
+                [BASE_ENTITY_LABEL]
+                if baseEntityLabel
+                else [_remove_backticks(rel.source.type)]
+            ),
+            "source_id": rel.source.id,
+            "target_label": (
+                [BASE_ENTITY_LABEL]
+                if baseEntityLabel
+                else [_remove_backticks(rel.target.type)]
+            ),
+            "target_id": rel.target.id,
+        }
+        transformed_relationships.append(rel_dict)
+    return transformed_relationships
+
+
+class Memgraph(GraphStore):
+    """Memgraph wrapper for graph operations.
 
     Parameters:
-    
     url (Optional[str]): The URL of the Memgraph database server.
     username (Optional[str]): The username for database authentication.
     password (Optional[str]): The password for database authentication.
-    database (Optional[str]): The name of the database to connect to. Default is 'memgraph'.
-    refresh_schema (bool): Whether to refresh schema information at initialization. Default is True.
-    driver_config (Optional[Dict]): Additional configuration passed to the Neo4j driver.
+    database (str): The name of the database to connect to. Default is 'memgraph'.
+    refresh_schema (bool): A flag whether to refresh schema information
+    at initialization. Default is True.
+    driver_config (Dict): Configuration passed to Neo4j Driver.
 
+    *Security note*: Make sure that the database connection uses credentials
+        that are narrowly-scoped to only include necessary permissions.
+        Failure to do so may result in data corruption or loss, since the calling
+        code may attempt commands that would result in deletion, mutation
+        of data if appropriately prompted or reading sensitive data if such
+        data is present in the database.
+        The best way to guard against such negative outcomes is to (as appropriate)
+        limit the permissions granted to the credentials used with this tool.
+
+        See https://python.langchain.com/docs/security for more information.
     """
 
     def __init__(
@@ -260,49 +348,22 @@ class Memgraph:
             except neo4j.exceptions.ClientError as e:
                 raise e
 
-    def refresh_schema(self) -> None:
-        """
-        Refreshes the Memgraph graph schema information.
-        """
-        import ast
+    def close(self) -> None:
+        if self._driver:
+            logger.info("Closing the driver connection.")
+            self._driver.close()
+            self._driver = None
 
-        from neo4j.exceptions import Neo4jError
+    @property
+    def get_schema(self) -> str:
+        """Returns the schema of the Graph database"""
+        return self.schema
 
-        # leave schema empty if db is empty
-        if self.query("MATCH (n) RETURN n LIMIT 1") == []:
-            return
+    @property
+    def get_structured_schema(self) -> Dict[str, Any]:
+        """Returns the structured schema of the Graph database"""
+        return self.structured_schema
 
-        # first try with SHOW SCHEMA INFO
-        try:
-            result = self.query(SCHEMA_QUERY)[0].get("schema")
-            if result is not None and isinstance(result, (str, ast.AST)):
-                schema_result = ast.literal_eval(result)
-            else:
-                schema_result = result
-            assert schema_result is not None
-            structured_schema = get_schema_subset(schema_result)
-            self.structured_schema = structured_schema
-            self.schema = transform_schema_to_text(structured_schema)
-            return
-        except Neo4jError as e:
-            if (
-                e.code == "Memgraph.ClientError.MemgraphError.MemgraphError"
-                and "SchemaInfo disabled" in e.message
-            ):
-                logger.info(
-                    "Schema generation with SHOW SCHEMA INFO query failed. "
-                    "Set --schema-info-enabled=true to use SHOW SCHEMA INFO query. "
-                    "Falling back to alternative queries."
-                )
-
-        # fallback on Cypher without SHOW SCHEMA INFO
-        nodes = [query["output"] for query in self.query(NODE_PROPERTIES_QUERY)]
-        rels = self.query(REL_QUERY)
-
-        structured_schema = get_reformated_schema(nodes, rels)
-        self.structured_schema = structured_schema
-        self.schema = transform_schema_to_text(structured_schema)
-    
     def query(self, query: str, params: dict = {}) -> List[Dict[str, Any]]:
         """Query the graph.
 
@@ -357,5 +418,108 @@ class Memgraph:
             json_data = [r.data() for r in data]
             return json_data
 
+    def refresh_schema(self) -> None:
+        """
+        Refreshes the Memgraph graph schema information.
+        """
+        import ast
 
+        from neo4j.exceptions import Neo4jError
 
+        # leave schema empty if db is empty
+        if self.query("MATCH (n) RETURN n LIMIT 1") == []:
+            return
+
+        # first try with SHOW SCHEMA INFO
+        try:
+            result = self.query(SCHEMA_QUERY)[0].get("schema")
+            if result is not None and isinstance(result, (str, ast.AST)):
+                schema_result = ast.literal_eval(result)
+            else:
+                schema_result = result
+            assert schema_result is not None
+            structured_schema = get_schema_subset(schema_result)
+            self.structured_schema = structured_schema
+            self.schema = transform_schema_to_text(structured_schema)
+            return
+        except Neo4jError as e:
+            if (
+                e.code == "Memgraph.ClientError.MemgraphError.MemgraphError"
+                and "SchemaInfo disabled" in e.message
+            ):
+                logger.info(
+                    "Schema generation with SHOW SCHEMA INFO query failed. "
+                    "Set --schema-info-enabled=true to use SHOW SCHEMA INFO query. "
+                    "Falling back to alternative queries."
+                )
+
+        # fallback on Cypher without SHOW SCHEMA INFO
+        nodes = [query["output"] for query in self.query(NODE_PROPERTIES_QUERY)]
+        rels = self.query(REL_QUERY)
+
+        structured_schema = get_reformated_schema(nodes, rels)
+        self.structured_schema = structured_schema
+        self.schema = transform_schema_to_text(structured_schema)
+
+    def add_graph_documents(
+        self,
+        graph_documents: List[GraphDocument],
+        include_source: bool = False,
+        baseEntityLabel: bool = False,
+    ) -> None:
+        """
+        Take GraphDocument as input as uses it to construct a graph in Memgraph.
+
+        Parameters:
+        - graph_documents (List[GraphDocument]): A list of GraphDocument objects
+        that contain the nodes and relationships to be added to the graph. Each
+        GraphDocument should encapsulate the structure of part of the graph,
+        including nodes, relationships, and the source document information.
+        - include_source (bool, optional): If True, stores the source document
+        and links it to nodes in the graph using the MENTIONS relationship.
+        This is useful for tracing back the origin of data. Merges source
+        documents based on the `id` property from the source document metadata
+        if available; otherwise it calculates the MD5 hash of `page_content`
+        for merging process. Defaults to False.
+        - baseEntityLabel (bool, optional): If True, each newly created node
+        gets a secondary __Entity__ label, which is indexed and improves import
+        speed and performance. Defaults to False.
+        """
+
+        if baseEntityLabel:
+            self.query(
+                f"CREATE CONSTRAINT ON (b:{BASE_ENTITY_LABEL}) ASSERT b.id IS UNIQUE;"
+            )
+            self.query(f"CREATE INDEX ON :{BASE_ENTITY_LABEL}(id);")
+            self.query(f"CREATE INDEX ON :{BASE_ENTITY_LABEL};")
+
+        for document in graph_documents:
+            if include_source:
+                if not document.source.metadata.get("id"):
+                    document.source.metadata["id"] = md5(
+                        document.source.page_content.encode("utf-8")
+                    ).hexdigest()
+
+                self.query(INCLUDE_DOCS_QUERY, {"document": document.source.__dict__})
+
+            self.query(
+                NODE_IMPORT_QUERY,
+                {"data": _transform_nodes(document.nodes, baseEntityLabel)},
+            )
+
+            rel_data = _transform_relationships(document.relationships, baseEntityLabel)
+            self.query(
+                REL_NODES_IMPORT_QUERY,
+                {"data": rel_data},
+            )
+            self.query(
+                REL_IMPORT_QUERY,
+                {"data": rel_data},
+            )
+
+            if include_source:
+                self.query(
+                    INCLUDE_DOCS_SOURCE_QUERY,
+                    {"data": rel_data, "document": document.source.__dict__},
+                )
+        self.refresh_schema()
