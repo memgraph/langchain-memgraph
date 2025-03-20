@@ -1,12 +1,11 @@
 from importlib import metadata
 
+from langchain_memgraph.chains.graph_qa import MemgraphQAChain
 from langchain_memgraph.document_loaders import MemgraphLoader
+from langchain_memgraph.graphs.memgraph import Memgraph
 from langchain_memgraph.retrievers import MemgraphRetriever
 from langchain_memgraph.toolkits import MemgraphToolkit
 from langchain_memgraph.tools import QueryMemgraphTool
-from langchain_memgraph.chains.graph_qa import MemgraphQAChain
-from langchain_memgraph.graphs.memgraph import Memgraph
-
 
 try:
     __version__ = metadata.version(__package__)

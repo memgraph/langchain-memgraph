@@ -1,8 +1,9 @@
 from typing import Type
 
-from langchain_memgraph.tools import QueryMemgraphTool
 from langchain_tests.unit_tests import ToolsUnitTests
-from langchain_memgraph.memgraph import Memgraph
+
+from langchain_memgraph.graphs.memgraph import Memgraph
+from langchain_memgraph.tools import QueryMemgraphTool
 
 
 class TestMemgraphIntegration(ToolsUnitTests):

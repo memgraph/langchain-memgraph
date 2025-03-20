@@ -2,13 +2,14 @@
 
 from typing import List
 
-from pydantic import Field, ConfigDict
-from langchain_core.tools import BaseTool, BaseToolkit
 from langchain_core.language_models import BaseLanguageModel
+from langchain_core.tools import BaseTool, BaseToolkit
+from pydantic import ConfigDict, Field
+
+from langchain_memgraph.graphs.memgraph import Memgraph
 from langchain_memgraph.tools import (
     QueryMemgraphTool,
 )
-from langchain_memgraph.graphs.memgraph import Memgraph
 
 
 class MemgraphToolkit(BaseToolkit):

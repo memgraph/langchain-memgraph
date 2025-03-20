@@ -1,13 +1,16 @@
 import os
+
 import pytest
-from langchain_memgraph.graphs.memgraph import Memgraph
+from dotenv import load_dotenv
 from langchain_core.documents import Document
 from langchain_experimental.graph_transformers import LLMGraphTransformer
 from langchain_openai import ChatOpenAI
-from dotenv import load_dotenv
+
+from langchain_memgraph.graphs.memgraph import Memgraph
 
 # Load environment variables from .env
 load_dotenv()
+
 
 @pytest.fixture
 def memgraph_connection():
@@ -15,12 +18,15 @@ def memgraph_connection():
     url = os.getenv("MEMGRAPH_URI", "bolt://localhost:7687")
     username = os.getenv("MEMGRAPH_USERNAME", "")
     password = os.getenv("MEMGRAPH_PASSWORD", "")
-    
-    graph = Memgraph(url=url, username=username, password=password, refresh_schema=False)
+
+    graph = Memgraph(
+        url=url, username=username, password=password, refresh_schema=False
+    )
     yield graph
 
     # Cleanup: clear the database after test
     graph.query("MATCH (n) DETACH DELETE n")
+
 
 @pytest.fixture
 def llm_transformer():
@@ -28,6 +34,7 @@ def llm_transformer():
     os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "")
     llm = ChatOpenAI(temperature=0, model_name="gpt-4-turbo")
     return LLMGraphTransformer(llm=llm)
+
 
 def test_ingest_and_verify(memgraph_connection, llm_transformer):
     """Test to ingest a document and check nodes/edges in Memgraph."""
@@ -52,8 +59,12 @@ def test_ingest_and_verify(memgraph_connection, llm_transformer):
     memgraph_connection.add_graph_documents(graph_documents)
 
     # Verify nodes and edges were created
-    node_count = memgraph_connection.query("MATCH (n) RETURN count(n) AS count")[0]["count"]
-    edge_count = memgraph_connection.query("MATCH ()-[r]->() RETURN count(r) AS count")[0]["count"]
+    node_count = memgraph_connection.query("MATCH (n) RETURN count(n) AS count")[0][
+        "count"
+    ]
+    edge_count = memgraph_connection.query("MATCH ()-[r]->() RETURN count(r) AS count")[
+        0
+    ]["count"]
 
     assert node_count > 0, "No nodes were created!"
     assert edge_count > 0, "No edges were created!"

@@ -1,12 +1,15 @@
 import os
+
 import pytest
 from dotenv import load_dotenv
-from langchain_memgraph.graphs.memgraph import Memgraph
-from langchain_memgraph.chains.graph_qa import MemgraphQAChain
 from langchain_openai import ChatOpenAI
+
+from langchain_memgraph.chains.graph_qa import MemgraphQAChain
+from langchain_memgraph.graphs.memgraph import Memgraph
 
 # Load environment variables from .env
 load_dotenv()
+
 
 @pytest.fixture(scope="module")
 def memgraph_connection():
@@ -15,17 +18,20 @@ def memgraph_connection():
     username = os.getenv("MEMGRAPH_USERNAME", "")
     password = os.getenv("MEMGRAPH_PASSWORD", "")
 
-    graph = Memgraph(url=url, username=username, password=password, refresh_schema=False)
+    graph = Memgraph(
+        url=url, username=username, password=password, refresh_schema=False
+    )
     yield graph
-    
+
     # Cleanup: clear the database after test
     graph.query("MATCH (n) DETACH DELETE n")
+
 
 @pytest.fixture(scope="module")
 def memgraph_chain(memgraph_connection):
     """Set up MemgraphQAChain with OpenAI LLM."""
     os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "")
-    
+
     chain = MemgraphQAChain.from_llm(
         ChatOpenAI(temperature=0),
         graph=memgraph_connection,
@@ -33,6 +39,7 @@ def memgraph_chain(memgraph_connection):
         allow_dangerous_requests=True,
     )
     return chain
+
 
 def test_seed_graph(memgraph_connection):
     """Test to seed the graph with Baldur's Gate 3 data."""
@@ -53,22 +60,25 @@ def test_seed_graph(memgraph_connection):
     """
     memgraph_connection.query(query)
     memgraph_connection.refresh_schema()
-    
+
     # Verify nodes exist
-    game_exists = memgraph_connection.query("""MATCH (g:Game {name: "Baldur's Gate 3"}) RETURN g""")
+    game_exists = memgraph_connection.query(
+        """MATCH (g:Game {name: "Baldur's Gate 3"}) RETURN g"""
+    )
     assert len(game_exists) > 0, "Game node not created!"
 
     print("✅ Graph seeded successfully")
 
+
 def test_qa_chain(memgraph_chain):
     """Test QA chain to verify platform data retrieval."""
-    response = memgraph_chain.invoke("Which platforms is Baldur\'s Gate 3 available on?")
+    response = memgraph_chain.invoke("Which platforms is Baldur's Gate 3 available on?")
     result = response["result"].lower()
-    
+
     # Assert the response contains all expected platforms
     expected_platforms = ["playstation 5", "mac os", "windows", "xbox series x/s"]
-    
+
     for platform in expected_platforms:
         assert platform in result, f"Platform '{platform}' not found in response!"
-    
+
     print("✅ QA Chain returned expected platforms")

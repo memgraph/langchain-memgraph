@@ -24,9 +24,10 @@ from langchain_core.prompts import (
 from langchain_core.runnables import Runnable
 from pydantic import Field
 
-from langchain_memgraph.chains.prompts import MEMGRAPH_GENERATION_PROMPT, MEMGRAPH_QA_PROMPT
-
-
+from langchain_memgraph.chains.prompts import (
+    MEMGRAPH_GENERATION_PROMPT,
+    MEMGRAPH_QA_PROMPT,
+)
 from langchain_memgraph.graphs.memgraph import Memgraph
 
 INTERMEDIATE_STEPS_KEY = "intermediate_steps"
@@ -36,6 +37,7 @@ understandable answers based on the provided information from tools.
 Do not add any other information that wasn't present in the tools, and use 
 very concise style in interpreting results!
 """
+
 
 def extract_cypher(text: str) -> str:
     """Extract Cypher code from a text.
