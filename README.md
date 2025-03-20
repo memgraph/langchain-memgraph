@@ -1,4 +1,4 @@
-# 🦜️🔗 LangChain Neo4j
+# 🦜️🔗 LangChain Memgraph
 
 This package contains the LangChain integration with [Memgraph](https://memgraph.com/) graph database.
 
@@ -12,7 +12,7 @@ pip install -U langchain-memgraph
 
 ### Memgraph
 
-The `Memgraph` class is a wrapper around database client that supports the 
+The `Memgraph` class is a wrapper around the database client that supports the 
 query operation. 
 
 ```python
@@ -60,7 +60,7 @@ print(result)
 
 ### Memgraph toolkit
 
-The `MemgraphToolkit` contains different tools agents can leverage to perform specific tasks user has given them. Toolkit 
+The `MemgraphToolkit` contains different tools agents can leverage to perform specific tasks the user has given them. Toolkit 
 needs a database object and LLM access since different tools leverage different operations.  
 
 Currently supported tools: 
@@ -117,7 +117,7 @@ poetry install --with test,test_integration
 
 2. Start Memgraph in the background. 
    
-3. Create and .env file that points to Memgraph and OpenAI API
+3. Create an `.env` file that points to Memgraph and OpenAI API
 ```
 MEMGRAPH_URI=bolt://localhost:7687
 MEMGRAPH_USERNAME=
@@ -141,7 +141,7 @@ Run the integration test using:
 
 ## 🧹 Code Formatting and Linting
 
-Install the codespell, lint, and typing dependencies to lint and format your code:
+Install the `codespell`, `lint`, and typing dependencies to lint and format your code:
 
 ```bash
 poetry install --with codespell,lint,typing
