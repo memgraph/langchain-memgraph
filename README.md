@@ -1,3 +1,7 @@
+> [!IMPORTANT]  
+> This repository has been merged into the [Memgraph AI Toolkit](https://github.com/memgraph/ai-toolkit) monorepo to avoid duplicating tools.  
+> It will be deleted in one month—please follow the [Langchain integration](https://github.com/memgraph/ai-toolkit/tree/main/integrations/langchain-memgraph) there for all future development, and feel free to open issues or PRs in that repo.
+
 # 🦜️🔗 LangChain Memgraph
 
 This package contains the LangChain integration with [Memgraph](https://memgraph.com/) graph database.
